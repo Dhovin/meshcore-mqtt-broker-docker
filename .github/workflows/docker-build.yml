@@ -54,3 +54,9 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Trigger Portainer Webhook
+        if: github.event_name != 'pull_request' && secrets.PORTAINER_WEBHOOK_URL != ''
+        run: |
+          curl -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}"
+

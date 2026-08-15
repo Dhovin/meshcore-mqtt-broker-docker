@@ -129,17 +129,32 @@ If you prefer not to use Stacks, you can create the container directly in Portai
 
 ---
 
-## Updating the Container in Portainer
+---
 
-When a new image is published to `ghcr.io/dhovin/meshcore-mqtt-broker-docker`:
+## Automated Container Upgrades
 
-1. **For Stacks**:
-   - Go to **Stacks** > `meshcore-mqtt-broker` > **Editor**.
-   - Enable **Re-pull image and redeploy**.
-   - Click **Update the stack**.
+To keep your broker automatically up to date whenever new upstream releases or container builds occur:
 
-2. **For Standalone Containers**:
-   - Go to **Containers** > `meshcore-mqtt-broker`.
-   - Click **Recreate**.
-   - Enable **Re-pull image**.
-   - Click **Recreate**.
+### Option 1: Portainer Webhook (Instant Automated Redeploy)
+
+1. Open your `meshcore-mqtt-broker` Stack or Container in Portainer.
+2. Scroll to **Service webhook** (or **Stack webhook**) and toggle it **ON**.
+3. Copy the generated Webhook URL (e.g. `https://portainer.yourdomain.com/api/stacks/webhooks/...`).
+4. Go to your GitHub repository **Settings** > **Secrets and variables** > **Actions**.
+5. Create a new repository secret named `PORTAINER_WEBHOOK_URL` and paste the webhook URL.
+6. Whenever GitHub Actions builds a new Docker image (either manually, on git push, or via daily upstream sync), GitHub will trigger Portainer to automatically pull the new image and redeploy your stack!
+
+### Option 2: Watchtower (Automated Polling)
+
+Include [Watchtower](https://containrrr.dev/watchtower/) in your Portainer stack to monitor `ghcr.io/dhovin/meshcore-mqtt-broker-docker:latest` and pull updates automatically:
+
+```yaml
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower-meshcore
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 3600 meshcore-mqtt-broker
+```
+

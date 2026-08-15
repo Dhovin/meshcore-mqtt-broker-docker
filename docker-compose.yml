@@ -42,6 +42,17 @@ services:
       retries: 3
       start_period: 10s
 
+  # Optional Watchtower service for automatic container updates
+  # Uncomment below to automatically pull new GHCR image builds and restart the broker
+  # watchtower:
+  #   image: containrrr/watchtower
+  #   container_name: watchtower-meshcore
+  #   restart: unless-stopped
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   command: --interval 86400 meshcore-mqtt-broker
+
 volumes:
   meshcore_data:
     driver: local
+

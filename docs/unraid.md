@@ -149,11 +149,26 @@ services:
 
 ## Updating the Container on unRAID
 
-- **unRAID Docker Web GUI**: When a new container image is pushed to GHCR, unRAID will show **"Update Available"** next to `meshcore-mqtt-broker` on the Docker tab. Click **Apply Update**.
-- **Docker Compose Plugin**: Click **Compose Pull** then **Compose Up** in the stack interface.
+- **Manual Update**: When a new container image is pushed to GHCR, unRAID will show **"Update Available"** next to `meshcore-mqtt-broker` on the Docker tab. Click **Apply Update**.
+- **Automated Update (CA Auto Update Applications)**:
+  1. Install **CA Auto Update Applications** from unRAID Community Applications.
+  2. Go to **Settings** > **Auto Update Applications**.
+  3. Enable auto-update for `meshcore-mqtt-broker` or set a schedule (e.g. daily/weekly).
+- **Automated Update (Watchtower)**:
+  If using the Docker Compose Plugin, add Watchtower to your stack definition:
+  ```yaml
+    watchtower:
+      image: containrrr/watchtower
+      container_name: watchtower-meshcore
+      restart: unless-stopped
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+      command: --interval 86400 meshcore-mqtt-broker
+  ```
 
 ---
 
 ## Storage & File Permissions
 
 The container runs internally under Node.js user permissions and stores files under `/mnt/user/appdata/meshcore-mqtt-broker`. Ensure that the `appdata` share has valid read/write permissions for Docker containers.
+

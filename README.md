@@ -89,6 +89,22 @@ docker build -t meshcore-mqtt-broker .
 
 ---
 
+## Automated Upstream Sync & Upgrades
+
+This repository includes automated pipelines to stay updated with upstream [`michaelhart/meshcore-mqtt-broker`](https://github.com/michaelhart/meshcore-mqtt-broker):
+
+1. **Daily Upstream Sync (GitHub Actions)**:
+   - A scheduled workflow (`.github/workflows/upstream-sync.yml`) runs daily at 00:00 UTC.
+   - It automatically checks the original repository for new commits/releases.
+   - If updates exist, it syncs the source code, commits the updates, and triggers the Docker build workflow to publish an updated image to GHCR.
+
+2. **Automatic Container Redeployment**:
+   - **Portainer Webhooks**: Set up Portainer Stack Webhooks and add your webhook URL to GitHub Repository Secrets as `PORTAINER_WEBHOOK_URL`. GitHub will automatically trigger Portainer to redeploy whenever a new image is built. (See [Portainer Guide](docs/portainer.md)).
+   - **Watchtower**: Enable the optional Watchtower service in `docker-compose.yml` to automatically pull new GHCR builds and restart the broker.
+   - **unRAID**: Use unRAID's CA Auto Update Applications plugin or Watchtower. (See [unRAID Guide](docs/unraid.md)).
+
+---
+
 ## Volume Persistence
 
 The container stores SQLite abuse detection data at `/data/abuse-detection.db`.
