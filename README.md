@@ -56,6 +56,16 @@ docker compose ps
 
 ---
 
+## Deployment Guides
+
+Detailed guides for various platforms and deployment methods:
+
+- 🚢 **[Portainer Guide](docs/portainer.md)**: Deploy via Portainer Stacks (Compose Web Editor) or standalone container.
+- 🦔 **[unRAID Guide](docs/unraid.md)**: Deploy via unRAID Docker Web GUI (Manual Add Container) or Docker Compose Plugin.
+- 🔒 **[Cloudflare Tunnels Guide](docs/cloudflare-tunnels.md)**: Expose the broker securely with automatic SSL/TLS termination without opening firewall ports.
+
+---
+
 ## Docker Image Options
 
 ### Running Pre-built Image from GHCR
