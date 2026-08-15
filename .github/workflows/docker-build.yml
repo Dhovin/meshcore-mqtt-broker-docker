@@ -63,7 +63,12 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Trigger Portainer Webhook
-        if: github.event_name != 'pull_request' && secrets.PORTAINER_WEBHOOK_URL != ''
+        if: github.event_name != 'pull_request'
+        env:
+          PORTAINER_WEBHOOK_URL: ${{ secrets.PORTAINER_WEBHOOK_URL }}
         run: |
-          curl -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}"
+          if [ -n "$PORTAINER_WEBHOOK_URL" ]; then
+            curl -X POST "$PORTAINER_WEBHOOK_URL"
+          fi
+
 
