@@ -301,6 +301,13 @@ aedes.authorizePublish = (client, packet, callback) => {
       return;
     }
     
+    // Allow bridge connection state notifications ($SYS/broker/connection/...) to prevent bridge disconnects
+    if (packet.topic.startsWith('$SYS/broker/connection/')) {
+      console.log(`${logPrefix} [AUTHZ] ✓ Bridge status notification authorized -> ${packet.topic}`);
+      callback(null);
+      return;
+    }
+    
     console.log(`${logPrefix} [AUTHZ] ✗ Publish denied (subscriber) -> ${packet.topic}`);
     callback(new Error('Subscriber clients are subscribe-only'));
     return;
