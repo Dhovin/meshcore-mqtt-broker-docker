@@ -255,6 +255,7 @@ aedes.authenticate = async (client, username, password, callback) => {
     (client as any).publicKey = publicKey;
     (client as any).tokenPayload = tokenPayload;
     (client as any).clientType = ClientType.PUBLISHER;
+    (client as any).rawAuthToken = passwordStr;
     
     // Mark stream as authenticated
     const stream = (client as any).conn;
@@ -835,7 +836,9 @@ aedes.on('publish', (packet, client) => {
 
   // Forward incoming meshcore/# packets out to MeshMapper / LetsMesh relays
   const payloadBuf = Buffer.isBuffer(packet.payload) ? packet.payload : Buffer.from(packet.payload);
-  forwardPacketToRelays(packet.topic, payloadBuf);
+  const pubKey = (client as any)?.publicKey;
+  const rawAuthToken = (client as any)?.rawAuthToken;
+  forwardPacketToRelays(packet.topic, payloadBuf, pubKey, rawAuthToken);
 });
 
 aedes.on('subscribe', (subscriptions, client) => {

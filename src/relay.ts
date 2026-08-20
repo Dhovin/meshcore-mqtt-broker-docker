@@ -7,59 +7,45 @@ function isEnabled(val?: string): boolean {
   return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
 }
 
-// Single combined enable flag (supports ENABLE_OUTBOUND_RELAY, ENABLE_RELAY, or legacy flags)
 const ENABLE_RELAY = isEnabled(process.env.ENABLE_OUTBOUND_RELAY) ||
                      isEnabled(process.env.ENABLE_RELAY) ||
                      isEnabled(process.env.ENABLE_MESHMAPPER_RELAY) ||
                      isEnabled(process.env.ENABLE_LETSMESH_RELAY);
 
-// Static MeshCore Ed25519 observer keypair used for signing MeshMapper & LetsMesh JWT auth tokens
-const RELAY_KEYPAIR = {
+// Fallback observer keypair if node raw token is unavailable
+const FALLBACK_KEYPAIR = {
   publicKey: process.env.RELAY_PUBLIC_KEY || '4852B69364572B52EFA1B6BB3E6D0ABED4F389A1CBFBB60A9BBA2CCE649CAF0E',
   privateKey: process.env.RELAY_PRIVATE_KEY || '18469d6140447f77de13cd8d761e605431f52269fbff43b0925752ed9e6745435dc6a86d2568af8b70d3365db3f88234760c8ecc645ce469829bc45b65f1d5d5',
 };
 
-interface QueuedPacket {
-  topic: string;
-  payload: Buffer;
-  timestamp: number;
-}
-
-interface RelayedClient {
+interface TargetConfig {
   name: string;
   url: string;
   aud: string;
+}
+
+const TARGETS: TargetConfig[] = [
+  { name: 'MeshMapper', url: 'wss://mqtt.meshmapper.net:443', aud: 'mqtt.meshmapper.net' },
+  { name: 'LetsMesh US', url: 'wss://mqtt-us-v1.letsmesh.net:443', aud: 'mqtt-us-v1.letsmesh.net' },
+  { name: 'LetsMesh EU', url: 'wss://mqtt-eu-v1.letsmesh.net:443', aud: 'mqtt-eu-v1.letsmesh.net' },
+];
+
+interface NodeClient {
+  targetName: string;
+  pubKey: string;
   client: mqtt.MqttClient;
-  queue: QueuedPacket[];
-  isConnecting: boolean;
+  lastUsed: number;
 }
 
-const outboundClients: RelayedClient[] = [];
+// Pool of connections keyed by `${targetName}:${pubKey}`
+const clientPool = new Map<string, NodeClient>();
 let packetCounter = 0;
-const MAX_QUEUE_SIZE = 100;
-
-async function createSignedToken(aud: string): Promise<{ username: string; token: string }> {
-  const token = await createAuthToken(
-    {
-      publicKey: RELAY_KEYPAIR.publicKey,
-      aud: aud,
-      iat: Math.floor(Date.now() / 1000),
-    },
-    RELAY_KEYPAIR.privateKey,
-    RELAY_KEYPAIR.publicKey
-  );
-  return {
-    username: `v1_${RELAY_KEYPAIR.publicKey.toUpperCase()}`,
-    token,
-  };
-}
 
 export async function initRelay(): Promise<void> {
   console.log('====================================================');
   console.log('       MeshCore Outbound Relay Initializing         ');
   console.log('====================================================');
   console.log(`[RELAY] ENABLE_OUTBOUND_RELAY = ${ENABLE_RELAY}`);
-  console.log(`[RELAY] Observer Public Key   = ${RELAY_KEYPAIR.publicKey}`);
   console.log('====================================================');
 
   if (!ENABLE_RELAY) {
@@ -67,149 +53,105 @@ export async function initRelay(): Promise<void> {
     return;
   }
 
-  const setupOutbound = async (name: string, url: string, aud: string) => {
-    try {
-      const auth = await createSignedToken(aud);
-      console.log(`[${name}] Connecting to ${url}...`);
+  console.log('[RELAY] Relay service active. Dedicated per-node connections will initialize matching topic public keys.');
 
-      const item: RelayedClient = {
-        name,
-        url,
-        aud,
-        queue: [],
-        isConnecting: true,
-        client: null as any,
-      };
-
-      const client = mqtt.connect(url, {
-        username: auth.username,
-        password: auth.token,
-        keepalive: 10, // 10s keepalive ensures active WebSocket PINGREQ frames
-        reconnectPeriod: 3000,
-        rejectUnauthorized: false,
-        resubscribe: true,
-        connectTimeout: 10000,
-        wsOptions: {
-          handshakeTimeout: 10000,
-        },
-      });
-
-      item.client = client;
-
-      // Flush queue helper
-      const flushQueue = () => {
-        if (item.queue.length === 0) return;
-        console.log(`[${name}] 🚀 Flushing ${item.queue.length} queued packet(s) after reconnect...`);
-        const toSend = [...item.queue];
-        item.queue = [];
-        for (const pkt of toSend) {
-          // Drop stale queued packets older than 5 minutes
-          if (Date.now() - pkt.timestamp > 300000) continue;
-          client.publish(pkt.topic, pkt.payload, (err) => {
-            if (err) {
-              console.error(`[RELAY -> ${name}] ✗ Flush publish error: ${err.message}`);
-            } else {
-              console.log(`[RELAY -> ${name}] ✓ Flushed queued packet -> ${pkt.topic}`);
-            }
-          });
-        }
-      };
-
-      client.on('connect', () => {
-        item.isConnecting = false;
-        console.log(`[${name}] ✓ SUCCESSFULLY CONNECTED AND AUTHENTICATED WITH ${name}!`);
-        flushQueue();
-      });
-
-      // Refresh auth token dynamically on reconnect
-      client.on('reconnect', async () => {
-        item.isConnecting = true;
-        try {
-          const freshAuth = await createSignedToken(aud);
-          (client as any).options.username = freshAuth.username;
-          (client as any).options.password = freshAuth.token;
-        } catch (err: any) {
-          console.error(`[${name}] ✗ Error generating fresh token during reconnect:`, err?.message || err);
-        }
-      });
-
-      client.on('offline', () => {
-        item.isConnecting = true;
-      });
-
-      client.on('close', () => {
-        item.isConnecting = true;
-      });
-
-      client.on('error', (err) => {
-        item.isConnecting = true;
-        console.error(`[${name}] ✗ Connection error: ${err.message}`);
-      });
-
-      outboundClients.push(item);
-    } catch (err: any) {
-      console.error(`[${name}] ✗ Error setting up client:`, err?.message || err);
-    }
-  };
-
-  // Setup all 3 targets
-  await setupOutbound('MeshMapper', 'wss://mqtt.meshmapper.net:443', 'mqtt.meshmapper.net');
-  await setupOutbound('LetsMesh US', 'wss://mqtt-us-v1.letsmesh.net:443', 'mqtt-us-v1.letsmesh.net');
-  await setupOutbound('LetsMesh EU', 'wss://mqtt-eu-v1.letsmesh.net:443', 'mqtt-eu-v1.letsmesh.net');
-
-  // Heartbeat & automatic recovery loop (runs every 30s)
-  setInterval(async () => {
-    if (outboundClients.length > 0) {
-      const statusStr = outboundClients.map(c => `${c.name}: ${c.client.connected ? 'CONNECTED' : 'RECONNECTING'} (Queue: ${c.queue.length})`).join(' | ');
-      console.log(`[RELAY HEARTBEAT] Targets: [ ${statusStr} ] | Total Relayed: ${packetCounter}`);
-
-      for (const item of outboundClients) {
-        if (!item.client.connected) {
-          try {
-            const freshAuth = await createSignedToken(item.aud);
-            (item.client as any).options.username = freshAuth.username;
-            (item.client as any).options.password = freshAuth.token;
-            item.client.reconnect();
-          } catch (e: any) {
-            // Ignore temporary reconnect errors
-          }
-        }
-      }
-    }
-  }, 30000);
+  // Heartbeat & connection cleanup every 60s
+  setInterval(() => {
+    console.log(`[RELAY HEARTBEAT] Active per-node connections: ${clientPool.size} | Total Relayed: ${packetCounter}`);
+  }, 60000);
 }
 
-export function forwardPacketToRelays(topic: string, payload: Buffer): void {
-  if (outboundClients.length === 0) return;
+async function getOrCreateNodeClient(target: TargetConfig, pubKey: string, rawAuthToken?: string): Promise<mqtt.MqttClient | null> {
+  const poolKey = `${target.name}:${pubKey.toUpperCase()}`;
+  
+  const existing = clientPool.get(poolKey);
+  if (existing) {
+    existing.lastUsed = Date.now();
+    return existing.client;
+  }
+
+  // Create new client matching the node's topic public key
+  try {
+    const username = `v1_${pubKey.toUpperCase()}`;
+    let password = rawAuthToken;
+
+    // If rawAuthToken from node is not present, generate fallback token for audience
+    if (!password) {
+      const tokenPayload = await createAuthToken(
+        { publicKey: pubKey.toUpperCase(), aud: target.aud, iat: Math.floor(Date.now() / 1000) },
+        FALLBACK_KEYPAIR.privateKey,
+        pubKey.toUpperCase()
+      );
+      password = tokenPayload;
+    }
+
+    console.log(`[RELAY -> ${target.name}] Initializing dedicated client for node ${pubKey.substring(0, 8)}... (username: ${username.substring(0, 12)}...)`);
+
+    const client = mqtt.connect(target.url, {
+      username: username,
+      password: password,
+      keepalive: 20,
+      reconnectPeriod: 5000,
+      rejectUnauthorized: false,
+    });
+
+    client.on('connect', () => {
+      console.log(`[RELAY -> ${target.name}] ✓ Connected and authenticated node ${pubKey.substring(0, 8)} with ${target.name}`);
+    });
+
+    client.on('error', (err) => {
+      console.error(`[RELAY -> ${target.name}] ✗ Node ${pubKey.substring(0, 8)} connection error: ${err.message}`);
+    });
+
+    const entry: NodeClient = {
+      targetName: target.name,
+      pubKey,
+      client,
+      lastUsed: Date.now(),
+    };
+
+    clientPool.set(poolKey, entry);
+    return client;
+  } catch (err: any) {
+    console.error(`[RELAY -> ${target.name}] ✗ Error creating client for ${pubKey.substring(0, 8)}:`, err?.message || err);
+    return null;
+  }
+}
+
+export async function forwardPacketToRelays(
+  topic: string,
+  payload: Buffer,
+  clientPubKey?: string,
+  rawAuthToken?: string
+): Promise<void> {
+  if (!ENABLE_RELAY) return;
   if (!topic.startsWith('meshcore/')) return;
   if (topic.includes('/internal')) return; // Do not forward internal PII topics
 
+  const parts = topic.split('/').map(p => p.trim());
+  // Topic format: meshcore / IATA / PUBLIC_KEY / subtopic
+  if (parts.length < 4) return;
+  const topicPubKey = parts[2].toUpperCase();
+
   packetCounter++;
-  for (const item of outboundClients) {
-    if (item.client.connected) {
-      item.client.publish(topic, payload, (err) => {
-        if (err) {
-          console.error(`[RELAY -> ${item.name}] ✗ Forwarding error on ${topic}: ${err.message}`);
-          queuePacket(item, topic, payload);
-        } else {
-          console.log(`[RELAY -> ${item.name}] ✓ Forwarded topic: ${topic} (${payload.length} bytes)`);
-        }
-      });
-    } else {
-      // Client is temporarily reconnecting - queue packet so it gets delivered on reconnect!
-      queuePacket(item, topic, payload);
+
+  for (const target of TARGETS) {
+    try {
+      // Get or create client connection matching the topic's public key
+      const client = await getOrCreateNodeClient(target, topicPubKey, rawAuthToken);
+      if (client && client.connected) {
+        client.publish(topic, payload, (err) => {
+          if (err) {
+            console.error(`[RELAY -> ${target.name}] ✗ Forward error on ${topic}: ${err.message}`);
+          } else {
+            console.log(`[RELAY -> ${target.name}] ✓ Forwarded ${topic} (${payload.length} bytes)`);
+          }
+        });
+      } else {
+        console.warn(`[RELAY -> ${target.name}] ⚠️ Connection initializing for ${topicPubKey.substring(0, 8)} on ${topic}`);
+      }
+    } catch (err: any) {
+      console.error(`[RELAY -> ${target.name}] ✗ Error relaying packet:`, err?.message || err);
     }
   }
-}
-
-function queuePacket(item: RelayedClient, topic: string, payload: Buffer): void {
-  if (item.queue.length >= MAX_QUEUE_SIZE) {
-    item.queue.shift(); // Remove oldest packet
-  }
-  item.queue.push({
-    topic,
-    payload,
-    timestamp: Date.now(),
-  });
-  console.log(`[RELAY -> ${item.name}] 📥 Queued packet for delivery upon reconnect -> ${topic} (Queue size: ${item.queue.length})`);
 }
