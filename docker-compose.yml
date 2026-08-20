@@ -45,6 +45,26 @@ services:
       retries: 3
       start_period: 10s
 
+  # Optional Outbound Relay Service (MeshMapper & LetsMesh)
+  meshmapper-relay:
+    image: python:3.11-alpine
+    container_name: meshmapper-relay
+    restart: unless-stopped
+    depends_on:
+      - meshcore-broker
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - ENABLE_MESHMAPPER_RELAY=${ENABLE_MESHMAPPER_RELAY:-false}
+      - ENABLE_LETSMESH_RELAY=${ENABLE_LETSMESH_RELAY:-false}
+      - LOCAL_BROKER_HOST=meshcore-broker
+      - LOCAL_BROKER_PORT=${MQTT_TCP_PORT:-1883}
+    volumes:
+      - ./meshmapper-relay.py:/app/relay.py
+    command: >
+      sh -c "pip install --no-cache-dir paho-mqtt && python /app/relay.py"
+
   # Optional Watchtower service for automatic container updates
   # Uncomment below to automatically pull new GHCR image builds and restart the broker
   # watchtower:
@@ -58,4 +78,5 @@ services:
 volumes:
   meshcore_data:
     driver: local
+
 

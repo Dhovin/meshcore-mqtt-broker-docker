@@ -107,6 +107,15 @@ while (true) {
   subscriberIndex++;
 }
 
+// Always register internal static relay subscriber account for sidecar containers
+const INTERNAL_RELAY_USER = '__internal_relay';
+const INTERNAL_RELAY_PASS = 'meshcore-internal-relay-secret-pass-2026';
+subscriberUsers.set(INTERNAL_RELAY_USER, INTERNAL_RELAY_PASS);
+subscriberRoles.set(INTERNAL_RELAY_USER, SubscriberRole.FULL_ACCESS);
+subscriberMaxConnections.set(INTERNAL_RELAY_USER, 10);
+subscriberActiveConnections.set(INTERNAL_RELAY_USER, new Set());
+console.log(`[CONFIG] Registered internal static relay subscriber: ${INTERNAL_RELAY_USER} (role: full_access)`);
+
 if (subscriberUsers.size === 0) {
   console.log('[CONFIG] No subscriber users configured');
 } else {
