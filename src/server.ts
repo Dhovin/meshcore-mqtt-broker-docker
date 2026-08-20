@@ -1,5 +1,6 @@
 import Aedes from 'aedes';
 import { createServer } from 'http';
+import { createServer as createTcpServer } from 'net';
 import { WebSocketServer } from 'ws';
 import { Duplex } from 'stream';
 import { verifyAuthToken } from '@michaelhart/meshcore-decoder';
@@ -15,6 +16,8 @@ const abuseConfig = loadAbuseConfig();
 const subscriberConfig = loadSubscriberConfig();
 
 const WS_PORT = mqttConfig.wsPort;
+const TCP_PORT = mqttConfig.tcpPort;
+const ENABLE_TCP = mqttConfig.enableTcp;
 const HOST = mqttConfig.host;
 const EXPECTED_AUDIENCE = mqttConfig.expectedAudience;
 
@@ -962,11 +965,32 @@ wsServer.on('connection', (ws, req) => {
   }
 });
 
+// Create optional TCP server for raw MQTT connections (e.g. Mosquitto bridge)
+let tcpServer: any = null;
+if (ENABLE_TCP) {
+  tcpServer = createTcpServer((socket: any) => {
+    const clientIP = socket.remoteAddress || 'unknown';
+    console.log(`[TCP] New TCP MQTT connection from ${clientIP}`);
+    (socket as any).clientIP = clientIP;
+    (socket as any).authenticated = false;
+    aedes.handle(socket);
+  });
+
+  tcpServer.listen(TCP_PORT, HOST, () => {
+    console.log(`TCP MQTT listening on:       mqtt://${HOST}:${TCP_PORT}`);
+  });
+}
+
 httpServer.listen(WS_PORT, HOST, () => {
   console.log('╔════════════════════════════════════════════════════════════╗');
-  console.log('║         MeshCore MQTT Broker (WebSocket)                  ║');
+  console.log('║         MeshCore MQTT Broker                               ║');
   console.log('╚════════════════════════════════════════════════════════════╝');
   console.log(`WebSocket MQTT listening on: ws://${HOST}:${WS_PORT}`);
+  if (ENABLE_TCP) {
+    console.log(`Standard TCP MQTT listening on: mqtt://${HOST}:${TCP_PORT}`);
+  } else {
+    console.log('Standard TCP MQTT:          Disabled (ENABLE_TCP_MQTT=false)');
+  }
   console.log('');
   console.log('Authentication Modes:');
   console.log(`  1. Subscribers (Subscribe-only): ${subscriberUsers.size} user(s) configured`);

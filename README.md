@@ -128,6 +128,24 @@ Clients connect to the broker via **WebSockets** on port `8883` (or your configu
   - `2` (Full Access): Access to public topics with full telemetry data.
   - `3` (Limited): Access to public topics with sensitive fields filtered out.
 
+### Mosquitto Bridge & Standard TCP MQTT Support
+To allow an external Mosquitto server to pull topics from this broker natively over standard TCP MQTT (port 1883), enable the optional TCP listener:
+
+Set environment variables in your `.env` or `docker-compose.yml`:
+```bash
+ENABLE_TCP_MQTT=true
+MQTT_TCP_PORT=1883
+```
+
+Then configure your external `mosquitto.conf`:
+```ini
+connection meshcore-pull-bridge
+address your-meshcore-broker-host:1883
+topic meshcore/# in 0
+remote_username viewer
+remote_password your-subscriber-password
+```
+
 ---
 
 ## Upstream Acknowledgements

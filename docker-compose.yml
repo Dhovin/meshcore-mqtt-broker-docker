@@ -7,11 +7,14 @@ services:
     restart: unless-stopped
     ports:
       - "${MQTT_WS_PORT:-8883}:8883"
+      - "${MQTT_TCP_PORT:-1883}:${MQTT_TCP_PORT:-1883}"
     env_file:
       - path: .env
         required: false
     environment:
       - MQTT_WS_PORT=${MQTT_WS_PORT:-8883}
+      - ENABLE_TCP_MQTT=${ENABLE_TCP_MQTT:-false}
+      - MQTT_TCP_PORT=${MQTT_TCP_PORT:-1883}
       - MQTT_HOST=${MQTT_HOST:-0.0.0.0}
       - AUTH_EXPECTED_AUDIENCE=${AUTH_EXPECTED_AUDIENCE:-mqtt.yourdomain.com}
       - SUBSCRIBER_MAX_CONNECTIONS_DEFAULT=${SUBSCRIBER_MAX_CONNECTIONS_DEFAULT:-2}
