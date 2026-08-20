@@ -35,7 +35,8 @@ services:
       - ABUSE_TOPIC_HISTORY_WINDOW_MS=${ABUSE_TOPIC_HISTORY_WINDOW_MS:-86400000}
       - ABUSE_PERSISTENCE_PATH=${ABUSE_PERSISTENCE_PATH:-/data/abuse-detection.db}
       - ABUSE_PERSISTENCE_INTERVAL_MS=${ABUSE_PERSISTENCE_INTERVAL_MS:-300000}
-      - ABUSE_STATE_RETENTION_MS=${ABUSE_STATE_RETENTION_MS:-604800000}
+      - ENABLE_MESHMAPPER_RELAY=${ENABLE_MESHMAPPER_RELAY:-false}
+      - ENABLE_LETSMESH_RELAY=${ENABLE_LETSMESH_RELAY:-false}
     volumes:
       - meshcore_data:/data
     healthcheck:
@@ -44,25 +45,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-
-  # Optional Outbound Relay Service (MeshMapper & LetsMesh)
-  meshmapper-relay:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: meshmapper-relay
-    restart: unless-stopped
-    depends_on:
-      - meshcore-broker
-    env_file:
-      - path: .env
-        required: false
-    environment:
-      - ENABLE_MESHMAPPER_RELAY=${ENABLE_MESHMAPPER_RELAY:-false}
-      - ENABLE_LETSMESH_RELAY=${ENABLE_LETSMESH_RELAY:-false}
-      - LOCAL_BROKER_HOST=meshcore-broker
-      - LOCAL_BROKER_PORT=${MQTT_TCP_PORT:-1883}
-    command: ["npx", "tsx", "src/relay.ts"]
 
   # Optional Watchtower service for automatic container updates
   # Uncomment below to automatically pull new GHCR image builds and restart the broker

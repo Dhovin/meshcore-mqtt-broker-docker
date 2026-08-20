@@ -9,6 +9,7 @@ import { RateLimiter } from './rate-limiter';
 import { getClientIP } from './ip-utils';
 import { AbuseDetector } from './abuse-detector';
 import { loadMqttConfig, loadAbuseConfig, loadSubscriberConfig } from './config';
+import { initRelay, forwardPacketToRelays } from './relay';
 
 // Load and validate configuration
 const mqttConfig = loadMqttConfig();
@@ -819,6 +820,10 @@ aedes.on('publish', (packet, client) => {
   } else {
     console.log(`[PUBLISH] Internal -> ${packet.topic} (${packet.payload.length} bytes)`);
   }
+
+  // Forward incoming meshcore/# packets out to MeshMapper / LetsMesh relays
+  const payloadBuf = Buffer.isBuffer(packet.payload) ? packet.payload : Buffer.from(packet.payload);
+  forwardPacketToRelays(packet.topic, payloadBuf);
 });
 
 aedes.on('subscribe', (subscriptions, client) => {
@@ -1022,6 +1027,10 @@ httpServer.listen(WS_PORT, HOST, () => {
   }
   console.log('');
   console.log('Ready to accept connections...');
+  console.log('');
+  
+  // Initialize outbound relays (MeshMapper & LetsMesh) if enabled
+  initRelay();
 });
 
 // Graceful shutdown

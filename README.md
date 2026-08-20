@@ -148,14 +148,13 @@ remote_password your-subscriber-password
 
 ### Forwarding Traffic to MeshMapper & LetsMesh
 
-This setup includes an optional `meshmapper-relay` container in `docker-compose.yml` that can automatically forward all local `meshcore/#` MQTT traffic out to **MeshMapper** (`mqtt.meshmapper.net:443`), **LetsMesh US** (`mqtt-us-v1.letsmesh.net:443`), and **LetsMesh EU** (`mqtt-eu-v1.letsmesh.net:443`).
+This setup includes built-in outbound relay support that can automatically forward all incoming `meshcore/#` MQTT packets out to **MeshMapper** (`mqtt.meshmapper.net:443`), **LetsMesh US** (`mqtt-us-v1.letsmesh.net:443`), and **LetsMesh EU** (`mqtt-eu-v1.letsmesh.net:443`) natively inside the broker.
 
-To enable forwarding, add these simple toggle switches to your `.env`:
+All relay activity, connection states, and forwarding logs appear directly in your **main broker logs**.
+
+To enable forwarding, set these switches in your `.env`:
 
 ```bash
-# Enable TCP on the local broker (required for internal relay communication, default: false)
-ENABLE_TCP_MQTT=false
-
 # Enable Outbound Relays (set to true to enable)
 ENABLE_MESHMAPPER_RELAY=false
 ENABLE_LETSMESH_RELAY=false
@@ -164,7 +163,7 @@ ENABLE_LETSMESH_RELAY=false
 Restart docker-compose:
 ```bash
 docker compose up -d
-docker compose logs -f meshmapper-relay
+docker compose logs -f
 ```
 
 ---
