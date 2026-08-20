@@ -11,6 +11,18 @@ import { AbuseDetector } from './abuse-detector';
 import { loadMqttConfig, loadAbuseConfig, loadSubscriberConfig } from './config';
 import { initRelay, forwardPacketToRelays } from './relay';
 
+// Prominent Reboot / Startup Banner
+console.log('');
+console.log('================================================================================');
+console.log('  ▲▲▲  MESHCORE MQTT BROKER STARTUP / REBOOT DETECTED  ▲▲▲');
+console.log('================================================================================');
+console.log(`  Boot Timestamp: ${new Date().toISOString()}`);
+console.log(`  Process ID:     ${process.pid}`);
+console.log(`  Node Version:   ${process.version}`);
+console.log(`  Platform:       ${process.platform} (${process.arch})`);
+console.log('================================================================================');
+console.log('');
+
 // Load and validate configuration
 const mqttConfig = loadMqttConfig();
 const abuseConfig = loadAbuseConfig();
