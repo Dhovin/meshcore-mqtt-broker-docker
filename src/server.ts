@@ -9,7 +9,7 @@ import { RateLimiter } from './rate-limiter';
 import { getClientIP } from './ip-utils';
 import { AbuseDetector } from './abuse-detector';
 import { loadMqttConfig, loadAbuseConfig, loadSubscriberConfig } from './config';
-import { initRelay, forwardPacketToRelays, registerNodeAuthToken } from './relay';
+import { initRelay, forwardPacketToRelays } from './relay';
 
 // Prominent Reboot / Startup Banner
 console.log('');
@@ -256,7 +256,6 @@ aedes.authenticate = async (client, username, password, callback) => {
     (client as any).tokenPayload = tokenPayload;
     (client as any).clientType = ClientType.PUBLISHER;
     (client as any).rawAuthToken = passwordStr;
-    registerNodeAuthToken(publicKey, passwordStr);
     
     // Mark stream as authenticated
     const stream = (client as any).conn;
@@ -837,9 +836,7 @@ aedes.on('publish', (packet, client) => {
 
   // Forward incoming meshcore/# packets out to MeshMapper / LetsMesh relays
   const payloadBuf = Buffer.isBuffer(packet.payload) ? packet.payload : Buffer.from(packet.payload);
-  const pubKey = (client as any)?.publicKey;
-  const rawAuthToken = (client as any)?.rawAuthToken;
-  forwardPacketToRelays(packet.topic, payloadBuf, pubKey, rawAuthToken);
+  forwardPacketToRelays(packet.topic, payloadBuf);
 });
 
 aedes.on('subscribe', (subscriptions, client) => {
