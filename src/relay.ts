@@ -72,12 +72,12 @@ export async function initRelay(): Promise<void> {
   const setupOutbound = async (target: TargetConfig) => {
     try {
       const auth = await createSignedToken(target.aud);
-      console.log(`[${target.name}] Connecting observer client to ${target.url} (Username: ${auth.username.substring(0, 12)}...)...`);
+      console.log(`[${target.name}] Connecting observer client to ${target.url}...`);
 
       const client = mqtt.connect(target.url, {
         username: auth.username,
         password: auth.token,
-        keepalive: 20,
+        keepalive: 30,
         reconnectPeriod: 5000,
         rejectUnauthorized: false,
         resubscribe: true,
@@ -87,15 +87,8 @@ export async function initRelay(): Promise<void> {
         console.log(`[${target.name}] ✓ SUCCESSFULLY CONNECTED AND AUTHENTICATED WITH ${target.name}!`);
       });
 
-      client.on('reconnect', async () => {
-        try {
-          console.log(`[${target.name}] 🔄 Refreshing auth token for ${target.aud}...`);
-          const freshAuth = await createSignedToken(target.aud);
-          (client as any).options.username = freshAuth.username;
-          (client as any).options.password = freshAuth.token;
-        } catch (err: any) {
-          console.error(`[${target.name}] ✗ Error refreshing auth token:`, err?.message || err);
-        }
+      client.on('offline', () => {
+        console.log(`[${target.name}] ⚠️ Connection offline: ${target.name}`);
       });
 
       client.on('error', (err) => {
@@ -121,7 +114,7 @@ export async function initRelay(): Promise<void> {
   setInterval(() => {
     if (outboundClients.length > 0) {
       const statusStr = outboundClients.map(c => `${c.name}: ${c.client.connected ? 'CONNECTED' : 'DISCONNECTED'}`).join(' | ');
-      console.log(`[RELAY HEARTBEAT] Targets: [ ${statusStr} ] | Total Packets Relayed: ${packetCounter}`);
+      console.log(`[RELAY HEARTBEAT] Targets: [ ${statusStr} ] | Total Relayed: ${packetCounter}`);
     }
   }, 60000);
 }
