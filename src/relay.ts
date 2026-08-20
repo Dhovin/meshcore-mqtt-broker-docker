@@ -19,14 +19,24 @@ const RELAY_KEYPAIR = {
   privateKey: process.env.RELAY_PRIVATE_KEY || '18469d6140447f77de13cd8d761e605431f52269fbff43b0925752ed9e6745435dc6a86d2568af8b70d3365db3f88234760c8ecc645ce469829bc45b65f1d5d5',
 };
 
+interface QueuedPacket {
+  topic: string;
+  payload: Buffer;
+  timestamp: number;
+}
+
 interface RelayedClient {
   name: string;
-  client: mqtt.MqttClient;
+  url: string;
   aud: string;
+  client: mqtt.MqttClient;
+  queue: QueuedPacket[];
+  isConnecting: boolean;
 }
 
 const outboundClients: RelayedClient[] = [];
 let packetCounter = 0;
+const MAX_QUEUE_SIZE = 100;
 
 async function createSignedToken(aud: string): Promise<{ username: string; token: string }> {
   const token = await createAuthToken(
@@ -59,27 +69,62 @@ export async function initRelay(): Promise<void> {
 
   const setupOutbound = async (name: string, url: string, aud: string) => {
     try {
-      console.log(`[${name}] Generating initial MeshCore Auth Token for audience '${aud}'...`);
       const auth = await createSignedToken(aud);
-      console.log(`[${name}] Connecting to ${url} (Username: ${auth.username.substring(0, 12)}...)...`);
+      console.log(`[${name}] Connecting to ${url}...`);
+
+      const item: RelayedClient = {
+        name,
+        url,
+        aud,
+        queue: [],
+        isConnecting: true,
+        client: null as any,
+      };
 
       const client = mqtt.connect(url, {
         username: auth.username,
         password: auth.token,
-        keepalive: 20, // 20s keepalive prevents Cloudflare/WebSocket proxy idle timeouts
-        reconnectPeriod: 5000,
+        keepalive: 10, // 10s keepalive ensures active WebSocket PINGREQ frames
+        reconnectPeriod: 3000,
         rejectUnauthorized: false,
         resubscribe: true,
+        connectTimeout: 10000,
+        wsOptions: {
+          handshakeTimeout: 10000,
+        },
       });
+
+      item.client = client;
+
+      // Flush queue helper
+      const flushQueue = () => {
+        if (item.queue.length === 0) return;
+        console.log(`[${name}] 🚀 Flushing ${item.queue.length} queued packet(s) after reconnect...`);
+        const toSend = [...item.queue];
+        item.queue = [];
+        for (const pkt of toSend) {
+          // Drop stale queued packets older than 5 minutes
+          if (Date.now() - pkt.timestamp > 300000) continue;
+          client.publish(pkt.topic, pkt.payload, (err) => {
+            if (err) {
+              console.error(`[RELAY -> ${name}] ✗ Flush publish error: ${err.message}`);
+            } else {
+              console.log(`[RELAY -> ${name}] ✓ Flushed queued packet -> ${pkt.topic}`);
+            }
+          });
+        }
+      };
 
       client.on('connect', () => {
+        item.isConnecting = false;
         console.log(`[${name}] ✓ SUCCESSFULLY CONNECTED AND AUTHENTICATED WITH ${name}!`);
+        flushQueue();
       });
 
-      // Regenerate fresh token on every reconnection attempt
+      // Refresh auth token dynamically on reconnect
       client.on('reconnect', async () => {
+        item.isConnecting = true;
         try {
-          console.log(`[${name}] 🔄 Refreshing auth token and reconnecting to ${name}...`);
           const freshAuth = await createSignedToken(aud);
           (client as any).options.username = freshAuth.username;
           (client as any).options.password = freshAuth.token;
@@ -89,50 +134,49 @@ export async function initRelay(): Promise<void> {
       });
 
       client.on('offline', () => {
-        console.log(`[${name}] ⚠️ Connection offline: ${name}`);
+        item.isConnecting = true;
       });
 
       client.on('close', () => {
-        console.log(`[${name}] Connection closed: ${name}`);
+        item.isConnecting = true;
       });
 
       client.on('error', (err) => {
+        item.isConnecting = true;
         console.error(`[${name}] ✗ Connection error: ${err.message}`);
       });
 
-      outboundClients.push({ name, client, aud });
+      outboundClients.push(item);
     } catch (err: any) {
       console.error(`[${name}] ✗ Error setting up client:`, err?.message || err);
     }
   };
 
-  // Connect to all community relay targets under single enable flag
+  // Setup all 3 targets
   await setupOutbound('MeshMapper', 'wss://mqtt.meshmapper.net:443', 'mqtt.meshmapper.net');
   await setupOutbound('LetsMesh US', 'wss://mqtt-us-v1.letsmesh.net:443', 'mqtt-us-v1.letsmesh.net');
   await setupOutbound('LetsMesh EU', 'wss://mqtt-eu-v1.letsmesh.net:443', 'mqtt-eu-v1.letsmesh.net');
 
-  // Periodic heartbeat every 60s in main server logs + periodic token refresh check
+  // Heartbeat & automatic recovery loop (runs every 30s)
   setInterval(async () => {
     if (outboundClients.length > 0) {
-      const statusStr = outboundClients.map(c => `${c.name}: ${c.client.connected ? 'CONNECTED' : 'DISCONNECTED'}`).join(' | ');
-      console.log(`[RELAY HEARTBEAT] Targets: [ ${statusStr} ] | Total Packets Relayed: ${packetCounter}`);
+      const statusStr = outboundClients.map(c => `${c.name}: ${c.client.connected ? 'CONNECTED' : 'RECONNECTING'} (Queue: ${c.queue.length})`).join(' | ');
+      console.log(`[RELAY HEARTBEAT] Targets: [ ${statusStr} ] | Total Relayed: ${packetCounter}`);
 
-      // Proactively trigger reconnect if any client is disconnected
       for (const item of outboundClients) {
         if (!item.client.connected) {
-          console.log(`[RELAY RECOVERY] Triggering reconnect for disconnected client '${item.name}'...`);
           try {
             const freshAuth = await createSignedToken(item.aud);
             (item.client as any).options.username = freshAuth.username;
             (item.client as any).options.password = freshAuth.token;
             item.client.reconnect();
           } catch (e: any) {
-            console.error(`[RELAY RECOVERY] Failed to trigger reconnect for '${item.name}':`, e?.message || e);
+            // Ignore temporary reconnect errors
           }
         }
       }
     }
-  }, 60000);
+  }, 30000);
 }
 
 export function forwardPacketToRelays(topic: string, payload: Buffer): void {
@@ -141,17 +185,31 @@ export function forwardPacketToRelays(topic: string, payload: Buffer): void {
   if (topic.includes('/internal')) return; // Do not forward internal PII topics
 
   packetCounter++;
-  for (const { name, client } of outboundClients) {
-    if (client.connected) {
-      client.publish(topic, payload, (err) => {
+  for (const item of outboundClients) {
+    if (item.client.connected) {
+      item.client.publish(topic, payload, (err) => {
         if (err) {
-          console.error(`[RELAY -> ${name}] ✗ Forwarding failed on ${topic}: ${err.message}`);
+          console.error(`[RELAY -> ${item.name}] ✗ Forwarding error on ${topic}: ${err.message}`);
+          queuePacket(item, topic, payload);
         } else {
-          console.log(`[RELAY -> ${name}] ✓ Forwarded topic: ${topic} (${payload.length} bytes)`);
+          console.log(`[RELAY -> ${item.name}] ✓ Forwarded topic: ${topic} (${payload.length} bytes)`);
         }
       });
     } else {
-      console.warn(`[RELAY -> ${name}] ⚠️ Skipped forwarding (target offline, reconnection queued): ${topic}`);
+      // Client is temporarily reconnecting - queue packet so it gets delivered on reconnect!
+      queuePacket(item, topic, payload);
     }
   }
+}
+
+function queuePacket(item: RelayedClient, topic: string, payload: Buffer): void {
+  if (item.queue.length >= MAX_QUEUE_SIZE) {
+    item.queue.shift(); // Remove oldest packet
+  }
+  item.queue.push({
+    topic,
+    payload,
+    timestamp: Date.now(),
+  });
+  console.log(`[RELAY -> ${item.name}] 📥 Queued packet for delivery upon reconnect -> ${topic} (Queue size: ${item.queue.length})`);
 }
