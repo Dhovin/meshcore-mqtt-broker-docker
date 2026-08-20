@@ -9,7 +9,7 @@ import { RateLimiter } from './rate-limiter';
 import { getClientIP } from './ip-utils';
 import { AbuseDetector } from './abuse-detector';
 import { loadMqttConfig, loadAbuseConfig, loadSubscriberConfig } from './config';
-import { initRelay, forwardPacketToRelays } from './relay';
+import { initRelay, forwardPacketToRelays, registerNodeAuthToken } from './relay';
 
 // Prominent Reboot / Startup Banner
 console.log('');
@@ -256,6 +256,7 @@ aedes.authenticate = async (client, username, password, callback) => {
     (client as any).tokenPayload = tokenPayload;
     (client as any).clientType = ClientType.PUBLISHER;
     (client as any).rawAuthToken = passwordStr;
+    registerNodeAuthToken(publicKey, passwordStr);
     
     // Mark stream as authenticated
     const stream = (client as any).conn;

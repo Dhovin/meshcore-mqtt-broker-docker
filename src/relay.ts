@@ -1,5 +1,4 @@
 import mqtt from 'mqtt';
-import { createAuthToken } from '@michaelhart/meshcore-decoder';
 
 function isEnabled(val?: string): boolean {
   if (!val) return false;
@@ -11,12 +10,6 @@ const ENABLE_RELAY = isEnabled(process.env.ENABLE_OUTBOUND_RELAY) ||
                      isEnabled(process.env.ENABLE_RELAY) ||
                      isEnabled(process.env.ENABLE_MESHMAPPER_RELAY) ||
                      isEnabled(process.env.ENABLE_LETSMESH_RELAY);
-
-// Fallback observer keypair if node raw token is unavailable
-const FALLBACK_KEYPAIR = {
-  publicKey: process.env.RELAY_PUBLIC_KEY || '4852B69364572B52EFA1B6BB3E6D0ABED4F389A1CBFBB60A9BBA2CCE649CAF0E',
-  privateKey: process.env.RELAY_PRIVATE_KEY || '18469d6140447f77de13cd8d761e605431f52269fbff43b0925752ed9e6745435dc6a86d2568af8b70d3365db3f88234760c8ecc645ce469829bc45b65f1d5d5',
-};
 
 interface TargetConfig {
   name: string;
@@ -37,9 +30,20 @@ interface NodeClient {
   lastUsed: number;
 }
 
-// Pool of connections keyed by `${targetName}:${pubKey}`
+// Map of node public keys to their authentic Ed25519 signed JWT tokens
+export const nodeAuthTokens = new Map<string, string>();
+
+// Pool of active target connections keyed by `${targetName}:${pubKey}`
 const clientPool = new Map<string, NodeClient>();
 let packetCounter = 0;
+
+export function registerNodeAuthToken(pubKey: string, token: string): void {
+  if (pubKey && token) {
+    const formattedKey = pubKey.toUpperCase();
+    nodeAuthTokens.set(formattedKey, token);
+    console.log(`[RELAY] Registered authentic JWT token for node ${formattedKey.substring(0, 8)}`);
+  }
+}
 
 export async function initRelay(): Promise<void> {
   console.log('====================================================');
@@ -53,15 +57,15 @@ export async function initRelay(): Promise<void> {
     return;
   }
 
-  console.log('[RELAY] Relay service active. Dedicated per-node connections will initialize matching topic public keys.');
+  console.log('[RELAY] Relay service active. Authentic per-node connections will initialize as nodes authenticate.');
 
-  // Heartbeat & connection cleanup every 60s
+  // Heartbeat every 60s
   setInterval(() => {
-    console.log(`[RELAY HEARTBEAT] Active per-node connections: ${clientPool.size} | Total Relayed: ${packetCounter}`);
+    console.log(`[RELAY HEARTBEAT] Registered node tokens: ${nodeAuthTokens.size} | Active target connections: ${clientPool.size} | Total Relayed: ${packetCounter}`);
   }, 60000);
 }
 
-async function getOrCreateNodeClient(target: TargetConfig, pubKey: string, rawAuthToken?: string): Promise<mqtt.MqttClient | null> {
+async function getOrCreateNodeClient(target: TargetConfig, pubKey: string, rawAuthToken: string): Promise<mqtt.MqttClient | null> {
   const poolKey = `${target.name}:${pubKey.toUpperCase()}`;
   
   const existing = clientPool.get(poolKey);
@@ -70,33 +74,20 @@ async function getOrCreateNodeClient(target: TargetConfig, pubKey: string, rawAu
     return existing.client;
   }
 
-  // Create new client matching the node's topic public key
   try {
     const username = `v1_${pubKey.toUpperCase()}`;
-    let password = rawAuthToken;
-
-    // If rawAuthToken from node is not present, generate fallback token for audience
-    if (!password) {
-      const tokenPayload = await createAuthToken(
-        { publicKey: pubKey.toUpperCase(), aud: target.aud, iat: Math.floor(Date.now() / 1000) },
-        FALLBACK_KEYPAIR.privateKey,
-        pubKey.toUpperCase()
-      );
-      password = tokenPayload;
-    }
-
-    console.log(`[RELAY -> ${target.name}] Initializing dedicated client for node ${pubKey.substring(0, 8)}... (username: ${username.substring(0, 12)}...)`);
+    console.log(`[RELAY -> ${target.name}] Connecting dedicated client for node ${pubKey.substring(0, 8)}... (username: ${username.substring(0, 12)}...)`);
 
     const client = mqtt.connect(target.url, {
       username: username,
-      password: password,
+      password: rawAuthToken,
       keepalive: 20,
       reconnectPeriod: 5000,
       rejectUnauthorized: false,
     });
 
     client.on('connect', () => {
-      console.log(`[RELAY -> ${target.name}] ✓ Connected and authenticated node ${pubKey.substring(0, 8)} with ${target.name}`);
+      console.log(`[RELAY -> ${target.name}] ✓ Connected and authenticated node ${pubKey.substring(0, 8)} with ${target.name}!`);
     });
 
     client.on('error', (err) => {
@@ -105,7 +96,7 @@ async function getOrCreateNodeClient(target: TargetConfig, pubKey: string, rawAu
 
     const entry: NodeClient = {
       targetName: target.name,
-      pubKey,
+      pubKey: pubKey.toUpperCase(),
       client,
       lastUsed: Date.now(),
     };
@@ -133,12 +124,20 @@ export async function forwardPacketToRelays(
   if (parts.length < 4) return;
   const topicPubKey = parts[2].toUpperCase();
 
+  // Retrieve authentic node signed JWT token
+  const authToken = rawAuthToken || (clientPubKey ? nodeAuthTokens.get(clientPubKey.toUpperCase()) : undefined) || nodeAuthTokens.get(topicPubKey);
+
+  if (!authToken) {
+    // Cannot authenticate with remote broker without node's genuine signed JWT token
+    console.warn(`[RELAY] ⚠️ Skipping relay for topic ${topic}: No authentic JWT token registered for node ${topicPubKey.substring(0, 8)} yet.`);
+    return;
+  }
+
   packetCounter++;
 
   for (const target of TARGETS) {
     try {
-      // Get or create client connection matching the topic's public key
-      const client = await getOrCreateNodeClient(target, topicPubKey, rawAuthToken);
+      const client = await getOrCreateNodeClient(target, topicPubKey, authToken);
       if (client && client.connected) {
         client.publish(topic, payload, (err) => {
           if (err) {
@@ -148,7 +147,7 @@ export async function forwardPacketToRelays(
           }
         });
       } else {
-        console.warn(`[RELAY -> ${target.name}] ⚠️ Connection initializing for ${topicPubKey.substring(0, 8)} on ${topic}`);
+        console.warn(`[RELAY -> ${target.name}] ⚠️ Connection connecting for ${topicPubKey.substring(0, 8)} on ${topic}`);
       }
     } catch (err: any) {
       console.error(`[RELAY -> ${target.name}] ✗ Error relaying packet:`, err?.message || err);
