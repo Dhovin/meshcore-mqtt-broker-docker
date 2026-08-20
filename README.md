@@ -146,24 +146,6 @@ remote_username viewer
 remote_password your-subscriber-password
 ```
 
-### Forwarding Traffic to MeshMapper & LetsMesh
-
-This setup includes built-in outbound relay support that can automatically forward all incoming `meshcore/#` MQTT packets out to **MeshMapper** (`mqtt.meshmapper.net:443`), **LetsMesh US** (`mqtt-us-v1.letsmesh.net:443`), and **LetsMesh EU** (`mqtt-eu-v1.letsmesh.net:443`) natively inside the broker.
-
-All relay activity, connection states, and forwarding logs appear directly in your **main broker logs**.
-
-To enable forwarding to all community map platforms (MeshMapper & LetsMesh), set this switch in your `.env`:
-
-```bash
-# Enable Outbound Relays (MeshMapper & LetsMesh)
-ENABLE_OUTBOUND_RELAY=false
-```
-
-Restart docker-compose:
-```bash
-docker compose up -d
-docker compose logs -f
-```
 
 ---
 

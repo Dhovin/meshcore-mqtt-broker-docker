@@ -23,16 +23,10 @@ export function loadMqttConfig() {
     'AUTH_EXPECTED_AUDIENCE',
   ]);
 
-  const isTrue = (val?: string) => val?.trim().toLowerCase() === 'true' || val?.trim() === '1';
-
   return {
     wsPort: parseInt(process.env.MQTT_WS_PORT!),
     tcpPort: parseInt(process.env.MQTT_TCP_PORT || '1883'),
-    enableTcp: isTrue(process.env.ENABLE_TCP_MQTT) ||
-               isTrue(process.env.ENABLE_OUTBOUND_RELAY) ||
-               isTrue(process.env.ENABLE_RELAY) ||
-               isTrue(process.env.ENABLE_MESHMAPPER_RELAY) ||
-               isTrue(process.env.ENABLE_LETSMESH_RELAY),
+    enableTcp: process.env.ENABLE_TCP_MQTT === 'true',
     host: process.env.MQTT_HOST!,
     expectedAudience: process.env.AUTH_EXPECTED_AUDIENCE!,
   };
