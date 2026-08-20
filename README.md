@@ -152,12 +152,11 @@ This setup includes built-in outbound relay support that can automatically forwa
 
 All relay activity, connection states, and forwarding logs appear directly in your **main broker logs**.
 
-To enable forwarding, set these switches in your `.env`:
+To enable forwarding to all community map platforms (MeshMapper & LetsMesh), set this switch in your `.env`:
 
 ```bash
-# Enable Outbound Relays (set to true to enable)
-ENABLE_MESHMAPPER_RELAY=false
-ENABLE_LETSMESH_RELAY=false
+# Enable Outbound Relays (MeshMapper & LetsMesh)
+ENABLE_OUTBOUND_RELAY=false
 ```
 
 Restart docker-compose:

@@ -7,8 +7,11 @@ function isEnabled(val?: string): boolean {
   return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
 }
 
-const ENABLE_MESHMAPPER = isEnabled(process.env.ENABLE_MESHMAPPER_RELAY);
-const ENABLE_LETSMESH = isEnabled(process.env.ENABLE_LETSMESH_RELAY);
+// Single combined enable flag (supports ENABLE_OUTBOUND_RELAY, ENABLE_RELAY, or legacy flags)
+const ENABLE_RELAY = isEnabled(process.env.ENABLE_OUTBOUND_RELAY) ||
+                     isEnabled(process.env.ENABLE_RELAY) ||
+                     isEnabled(process.env.ENABLE_MESHMAPPER_RELAY) ||
+                     isEnabled(process.env.ENABLE_LETSMESH_RELAY);
 
 // Static MeshCore Ed25519 observer keypair used for signing MeshMapper & LetsMesh JWT auth tokens
 const RELAY_KEYPAIR = {
@@ -39,13 +42,12 @@ export async function initRelay(): Promise<void> {
   console.log('====================================================');
   console.log('       MeshCore Outbound Relay Initializing         ');
   console.log('====================================================');
-  console.log(`[RELAY] ENABLE_MESHMAPPER_RELAY = ${ENABLE_MESHMAPPER}`);
-  console.log(`[RELAY] ENABLE_LETSMESH_RELAY   = ${ENABLE_LETSMESH}`);
-  console.log(`[RELAY] Observer Public Key     = ${RELAY_KEYPAIR.publicKey}`);
+  console.log(`[RELAY] ENABLE_OUTBOUND_RELAY = ${ENABLE_RELAY}`);
+  console.log(`[RELAY] Observer Public Key   = ${RELAY_KEYPAIR.publicKey}`);
   console.log('====================================================');
 
-  if (!ENABLE_MESHMAPPER && !ENABLE_LETSMESH) {
-    console.log('[RELAY] Outbound relays are disabled (ENABLE_MESHMAPPER_RELAY=false, ENABLE_LETSMESH_RELAY=false).');
+  if (!ENABLE_RELAY) {
+    console.log('[RELAY] Outbound relay service is disabled (ENABLE_OUTBOUND_RELAY=false).');
     return;
   }
 
@@ -89,14 +91,10 @@ export async function initRelay(): Promise<void> {
     }
   };
 
-  if (ENABLE_MESHMAPPER) {
-    await setupOutbound('MeshMapper', 'wss://mqtt.meshmapper.net:443', 'mqtt.meshmapper.net');
-  }
-
-  if (ENABLE_LETSMESH) {
-    await setupOutbound('LetsMesh US', 'wss://mqtt-us-v1.letsmesh.net:443', 'mqtt-us-v1.letsmesh.net');
-    await setupOutbound('LetsMesh EU', 'wss://mqtt-eu-v1.letsmesh.net:443', 'mqtt-eu-v1.letsmesh.net');
-  }
+  // Connect to all community relay targets (MeshMapper, LetsMesh US, LetsMesh EU) under single enable flag
+  await setupOutbound('MeshMapper', 'wss://mqtt.meshmapper.net:443', 'mqtt.meshmapper.net');
+  await setupOutbound('LetsMesh US', 'wss://mqtt-us-v1.letsmesh.net:443', 'mqtt-us-v1.letsmesh.net');
+  await setupOutbound('LetsMesh EU', 'wss://mqtt-eu-v1.letsmesh.net:443', 'mqtt-eu-v1.letsmesh.net');
 
   // Periodic heartbeat every 60s in main server logs
   setInterval(() => {

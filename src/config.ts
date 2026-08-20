@@ -28,7 +28,11 @@ export function loadMqttConfig() {
   return {
     wsPort: parseInt(process.env.MQTT_WS_PORT!),
     tcpPort: parseInt(process.env.MQTT_TCP_PORT || '1883'),
-    enableTcp: isTrue(process.env.ENABLE_TCP_MQTT) || isTrue(process.env.ENABLE_MESHMAPPER_RELAY) || isTrue(process.env.ENABLE_LETSMESH_RELAY),
+    enableTcp: isTrue(process.env.ENABLE_TCP_MQTT) ||
+               isTrue(process.env.ENABLE_OUTBOUND_RELAY) ||
+               isTrue(process.env.ENABLE_RELAY) ||
+               isTrue(process.env.ENABLE_MESHMAPPER_RELAY) ||
+               isTrue(process.env.ENABLE_LETSMESH_RELAY),
     host: process.env.MQTT_HOST!,
     expectedAudience: process.env.AUTH_EXPECTED_AUDIENCE!,
   };
