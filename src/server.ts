@@ -1,6 +1,5 @@
 import Aedes from 'aedes';
 import { createServer } from 'http';
-import { createServer as createTcpServer } from 'net';
 import { WebSocketServer } from 'ws';
 import { Duplex } from 'stream';
 import { verifyAuthToken } from '@michaelhart/meshcore-decoder';
@@ -10,26 +9,12 @@ import { getClientIP } from './ip-utils';
 import { AbuseDetector } from './abuse-detector';
 import { loadMqttConfig, loadAbuseConfig, loadSubscriberConfig } from './config';
 
-// Prominent Reboot / Startup Banner
-console.log('');
-console.log('================================================================================');
-console.log('  ▲▲▲  MESHCORE MQTT BROKER STARTUP / REBOOT DETECTED  ▲▲▲');
-console.log('================================================================================');
-console.log(`  Boot Timestamp: ${new Date().toISOString()}`);
-console.log(`  Process ID:     ${process.pid}`);
-console.log(`  Node Version:   ${process.version}`);
-console.log(`  Platform:       ${process.platform} (${process.arch})`);
-console.log('================================================================================');
-console.log('');
-
 // Load and validate configuration
 const mqttConfig = loadMqttConfig();
 const abuseConfig = loadAbuseConfig();
 const subscriberConfig = loadSubscriberConfig();
 
 const WS_PORT = mqttConfig.wsPort;
-const TCP_PORT = mqttConfig.tcpPort;
-const ENABLE_TCP = mqttConfig.enableTcp;
 const HOST = mqttConfig.host;
 const EXPECTED_AUDIENCE = mqttConfig.expectedAudience;
 
@@ -118,15 +103,6 @@ while (true) {
   
   subscriberIndex++;
 }
-
-// Always register internal static relay subscriber account for sidecar containers
-const INTERNAL_RELAY_USER = '__internal_relay';
-const INTERNAL_RELAY_PASS = 'meshcore-internal-relay-secret-pass-2026';
-subscriberUsers.set(INTERNAL_RELAY_USER, INTERNAL_RELAY_PASS);
-subscriberRoles.set(INTERNAL_RELAY_USER, SubscriberRole.FULL_ACCESS);
-subscriberMaxConnections.set(INTERNAL_RELAY_USER, 10);
-subscriberActiveConnections.set(INTERNAL_RELAY_USER, new Set());
-console.log(`[CONFIG] Registered internal static relay subscriber: ${INTERNAL_RELAY_USER} (role: full_access)`);
 
 if (subscriberUsers.size === 0) {
   console.log('[CONFIG] No subscriber users configured');
@@ -254,7 +230,6 @@ aedes.authenticate = async (client, username, password, callback) => {
     (client as any).publicKey = publicKey;
     (client as any).tokenPayload = tokenPayload;
     (client as any).clientType = ClientType.PUBLISHER;
-    (client as any).rawAuthToken = passwordStr;
     
     // Mark stream as authenticated
     const stream = (client as any).conn;
@@ -320,13 +295,6 @@ aedes.authorizePublish = (client, packet, callback) => {
       }
       console.log(`${logPrefix} [AUTHZ] ✗ Serial command denied (invalid topic format) -> ${packet.topic}`);
       callback(new Error('Invalid serial/commands topic format'));
-      return;
-    }
-    
-    // Allow bridge connection state notifications ($SYS/broker/connection/...) to prevent bridge disconnects
-    if (packet.topic.startsWith('$SYS/broker/connection/')) {
-      console.log(`${logPrefix} [AUTHZ] ✓ Bridge status notification authorized -> ${packet.topic}`);
-      callback(null);
       return;
     }
     
@@ -994,32 +962,11 @@ wsServer.on('connection', (ws, req) => {
   }
 });
 
-// Create optional TCP server for raw MQTT connections (e.g. Mosquitto bridge)
-let tcpServer: any = null;
-if (ENABLE_TCP) {
-  tcpServer = createTcpServer((socket: any) => {
-    const clientIP = socket.remoteAddress || 'unknown';
-    console.log(`[TCP] New TCP MQTT connection from ${clientIP}`);
-    (socket as any).clientIP = clientIP;
-    (socket as any).authenticated = false;
-    aedes.handle(socket);
-  });
-
-  tcpServer.listen(TCP_PORT, HOST, () => {
-    console.log(`TCP MQTT listening on:       mqtt://${HOST}:${TCP_PORT}`);
-  });
-}
-
 httpServer.listen(WS_PORT, HOST, () => {
   console.log('╔════════════════════════════════════════════════════════════╗');
-  console.log('║         MeshCore MQTT Broker                               ║');
+  console.log('║         MeshCore MQTT Broker (WebSocket)                  ║');
   console.log('╚════════════════════════════════════════════════════════════╝');
   console.log(`WebSocket MQTT listening on: ws://${HOST}:${WS_PORT}`);
-  if (ENABLE_TCP) {
-    console.log(`Standard TCP MQTT listening on: mqtt://${HOST}:${TCP_PORT}`);
-  } else {
-    console.log('Standard TCP MQTT:          Disabled (ENABLE_TCP_MQTT=false)');
-  }
   console.log('');
   console.log('Authentication Modes:');
   console.log(`  1. Subscribers (Subscribe-only): ${subscriberUsers.size} user(s) configured`);

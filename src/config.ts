@@ -25,8 +25,6 @@ export function loadMqttConfig() {
 
   return {
     wsPort: parseInt(process.env.MQTT_WS_PORT!),
-    tcpPort: parseInt(process.env.MQTT_TCP_PORT || '1883'),
-    enableTcp: process.env.ENABLE_TCP_MQTT === 'true',
     host: process.env.MQTT_HOST!,
     expectedAudience: process.env.AUTH_EXPECTED_AUDIENCE!,
   };
