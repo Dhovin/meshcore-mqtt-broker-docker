@@ -7,6 +7,7 @@ This guide details how to deploy and manage the **MeshCore MQTT Broker** using [
 ## Prerequisites
 
 - An active Portainer instance (Portainer CE or BE).
+- A supported host architecture: **x86_64 (`amd64`)** or **ARM64 (`arm64`)** (e.g., Raspberry Pi 4/5 64-bit, Apple Silicon, ARM/x86 VPS).
 - Access to Portainer's Web UI with rights to create containers or stacks.
 - Network access to port `8883` (or your chosen WebSocket port).
 
@@ -93,7 +94,7 @@ If you prefer not to use Stacks, you can create the container directly in Portai
 ### Step 2: Basic Configuration
 
 - **Name**: `meshcore-mqtt-broker`
-- **Image**: `ghcr.io/dhovin/meshcore-mqtt-broker-docker:latest`
+- **Image**: `ghcr.io/dhovin/meshcore-mqtt-broker-docker:latest` *(multi-arch: `amd64` / `arm64`)*
 - **Network ports configuration**:
   - Click **+ publish a new network port**
   - **host**: `8883` | **container**: `8883` (TCP)

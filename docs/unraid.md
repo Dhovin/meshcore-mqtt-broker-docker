@@ -6,6 +6,8 @@ This guide provides step-by-step instructions for installing and running the **M
 
 ## Overview
 
+The MeshCore MQTT Broker image (`ghcr.io/dhovin/meshcore-mqtt-broker-docker:latest`) is published as a multi-architecture container supporting both **x86_64 (`amd64`)** and **ARM64 (`arm64`)**.
+
 You can deploy the MeshCore MQTT Broker container on unRAID in two primary ways:
 
 1. **unRAID Docker Web GUI (Manual "Add Container")**: Recommended for standard unRAID installations using the built-in container management UI.
@@ -29,7 +31,7 @@ Fill out the form fields with the following values:
 | Field | Value | Notes |
 | :--- | :--- | :--- |
 | **Name** | `meshcore-mqtt-broker` | Container identifier |
-| **Repository** | `ghcr.io/dhovin/meshcore-mqtt-broker-docker:latest` | GHCR Docker image |
+| **Repository** | `ghcr.io/dhovin/meshcore-mqtt-broker-docker:latest` | GHCR multi-arch Docker image (`amd64`/`arm64`) |
 | **Icon URL** | `https://raw.githubusercontent.com/Dhovin/meshcore-mqtt-broker-docker/main/docs/icon.png` | *(Optional)* Container icon |
 | **WebUI** | `http://[IP]:[PORT:8883]/` | Health endpoint URL |
 | **Network Type** | `Bridge` | Standard unRAID bridge network |

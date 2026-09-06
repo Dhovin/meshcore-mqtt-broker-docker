@@ -14,10 +14,10 @@ The tunnel creates an encrypted connection from your server to Cloudflare's netw
 
 ## Prerequisites
 
-- A server to run the MQTT broker (Linux recommended)
+- A server to run the MQTT broker (Linux x86_64 or ARM64 recommended)
 - A Cloudflare account with a domain configured
 - Access to Cloudflare Zero Trust dashboard
-- Node.js 22+ installed on your server
+- Node.js 22+ installed on your server (or Docker engine if containerized)
 
 ## Part 1: Deploy the MQTT Broker
 

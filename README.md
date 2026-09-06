@@ -6,11 +6,24 @@ Docker container and `docker-compose` deployment setup for [MeshCore MQTT Broker
 
 ## Features
 
-- 🐳 **Containerized & Production Ready**: Multi-stage Docker build built on `node:22-alpine` with healthchecks.
+- 🐳 **Containerized & Production Ready**: Production-optimized Docker build built on `node:22-alpine` with healthchecks.
 - 🚀 **Docker Compose Out-of-the-Box**: Easily spin up the broker with persistent volume storage for SQLite.
 - 🔑 **Public Key & JWT Authentication**: Supports MeshCore Ed25519 authentication for publishers and role-based subscribe-only accounts.
 - 🛡️ **Abuse Detection & Rate Limiting**: Built-in persistence for tracking abuse metrics.
-- 📦 **Automated GHCR Builds**: Multi-architecture container images pushed via GitHub Actions.
+- 📦 **Automated Multi-Arch Builds**: Pre-built images for `linux/amd64` and `linux/arm64` pushed to GHCR via GitHub Actions.
+
+---
+
+## Supported Architectures
+
+Container images published to GitHub Container Registry (`ghcr.io`) are multi-architecture images supporting:
+
+| Architecture | Platform Tag | Target Environments & Devices |
+| :--- | :--- | :--- |
+| **x86_64 / AMD64** | `linux/amd64` | Standard Intel & AMD PC / Server hardware, unRAID, x86 VPS |
+| **ARM64 / AArch64** | `linux/arm64` | Raspberry Pi 4 / 5 (64-bit OS), Apple Silicon (M1/M2/M3/M4), AWS Graviton, Oracle ARM |
+
+Docker will automatically pull and run the correct architecture variant for your host platform.
 
 ---
 
@@ -86,6 +99,9 @@ cp .env.example .env
 
 # Build and run
 docker compose up -d --build
+
+# Or build multi-platform images locally using Docker Buildx:
+docker buildx build --platform linux/amd64,linux/arm64 -t meshcore-broker:latest .
 ```
 
 ---
