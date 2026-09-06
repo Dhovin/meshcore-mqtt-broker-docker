@@ -16,75 +16,76 @@ Docker container and `docker-compose` deployment setup for [MeshCore MQTT Broker
 
 ## Quick Start
 
-### 1. Clone the repository
+You don't need to clone this repository or create a `.env` file. You can run the pre-built multi-arch image (`amd64`/`arm64`) directly using Docker Compose or Docker CLI with all settings configured as container environment variables.
 
-```bash
-git clone https://github.com/Dhovin/meshcore-mqtt-broker-docker.git
-cd meshcore-mqtt-broker-docker
+### Option 1: Docker Compose (Recommended)
+
+Create a `docker-compose.yml` file anywhere on your system:
+
+```yaml
+services:
+  meshcore-broker:
+    image: ghcr.io/dhovin/meshcore-mqtt-broker-docker:latest
+    container_name: meshcore-mqtt-broker
+    restart: unless-stopped
+    ports:
+      - "8883:8883"
+      # - "1883:1883" # Uncomment if standard TCP MQTT is enabled
+    environment:
+      - MQTT_HOST=0.0.0.0
+      - MQTT_WS_PORT=8883
+      - AUTH_EXPECTED_AUDIENCE=mqtt.yourdomain.com
+      # Subscriber accounts format: username:password:role (1=Admin, 2=Full, 3=Limited)
+      - SUBSCRIBER_1=admin:your-admin-password:1
+      - SUBSCRIBER_2=viewer:your-viewer-password:2
+      # Optional Standard TCP MQTT listener (for Mosquitto bridges)
+      # - ENABLE_TCP_MQTT=true
+      # - MQTT_TCP_PORT=1883
+    volumes:
+      - meshcore_data:/data
+
+volumes:
+  meshcore_data:
 ```
 
-### 2. Configure Environment
-
-Copy `.env.example` to `.env` and adjust your environment variables:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` to configure your WebSocket port, subscriber accounts, and expected audience:
-
-```bash
-MQTT_WS_PORT=8883
-AUTH_EXPECTED_AUDIENCE=mqtt.yourdomain.com
-
-SUBSCRIBER_1=admin:your-admin-password:1
-SUBSCRIBER_2=viewer:your-viewer-password:2
-```
-
-### 3. Start with Docker Compose
+Start the container:
 
 ```bash
 docker compose up -d
-```
-
-Check logs and container status:
-
-```bash
 docker compose logs -f
-docker compose ps
 ```
 
 ---
 
-## Deployment Guides
-
-Detailed guides for various platforms and deployment methods:
-
-- 🚢 **[Portainer Guide](docs/portainer.md)**: Deploy via Portainer Stacks (Compose Web Editor) or standalone container.
-- 🦔 **[unRAID Guide](docs/unraid.md)**: Deploy via unRAID Docker Web GUI (Manual Add Container) or Docker Compose Plugin.
-- 🔒 **[Cloudflare Tunnels Guide](docs/cloudflare-tunnels.md)**: Expose the broker securely with automatic SSL/TLS termination without opening firewall ports.
-
----
-
-## Docker Image Options
-
-### Running Pre-built Image from GHCR
-
-You can run the latest published image directly without building:
+### Option 2: Docker CLI (`docker run`)
 
 ```bash
 docker run -d \
   --name meshcore-mqtt-broker \
+  --restart unless-stopped \
   -p 8883:8883 \
+  -e AUTH_EXPECTED_AUDIENCE="mqtt.yourdomain.com" \
+  -e SUBSCRIBER_1="admin:your-admin-password:1" \
+  -e SUBSCRIBER_2="viewer:your-viewer-password:2" \
   -v meshcore_data:/data \
-  --env-file .env \
   ghcr.io/dhovin/meshcore-mqtt-broker-docker:latest
 ```
 
-### Building the Image Locally
+---
+
+### Option 3: Building from Source (Local Development)
+
+If you wish to modify the code or build the image locally:
 
 ```bash
-docker build -t meshcore-mqtt-broker .
+git clone https://github.com/Dhovin/meshcore-mqtt-broker-docker.git
+cd meshcore-mqtt-broker-docker
+
+# Copy and customize environment variables
+cp .env.example .env
+
+# Build and run
+docker compose up -d --build
 ```
 
 ---

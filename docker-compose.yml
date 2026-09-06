@@ -1,5 +1,6 @@
 services:
   meshcore-broker:
+    image: ghcr.io/dhovin/meshcore-mqtt-broker-docker:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -17,7 +18,12 @@ services:
       - MQTT_TCP_PORT=${MQTT_TCP_PORT:-1883}
       - MQTT_HOST=${MQTT_HOST:-0.0.0.0}
       - AUTH_EXPECTED_AUDIENCE=${AUTH_EXPECTED_AUDIENCE:-mqtt.yourdomain.com}
+      # Subscribe-Only Accounts (format: username:password:role:maxConnections)
+      # Role: 1=admin, 2=full_access, 3=limited (default). maxConnections: override count or default
       - SUBSCRIBER_MAX_CONNECTIONS_DEFAULT=${SUBSCRIBER_MAX_CONNECTIONS_DEFAULT:-2}
+      - SUBSCRIBER_1=${SUBSCRIBER_1:-}
+      - SUBSCRIBER_2=${SUBSCRIBER_2:-}
+      - SUBSCRIBER_3=${SUBSCRIBER_3:-}
       - ABUSE_ENFORCEMENT_ENABLED=${ABUSE_ENFORCEMENT_ENABLED:-false}
       - ABUSE_DUPLICATE_WINDOW_SIZE=${ABUSE_DUPLICATE_WINDOW_SIZE:-100}
       - ABUSE_DUPLICATE_WINDOW_MS=${ABUSE_DUPLICATE_WINDOW_MS:-300000}
@@ -34,6 +40,7 @@ services:
       - ABUSE_TOPIC_HISTORY_SIZE=${ABUSE_TOPIC_HISTORY_SIZE:-50}
       - ABUSE_TOPIC_HISTORY_WINDOW_MS=${ABUSE_TOPIC_HISTORY_WINDOW_MS:-86400000}
       - ABUSE_PERSISTENCE_PATH=${ABUSE_PERSISTENCE_PATH:-/data/abuse-detection.db}
+      - ABUSE_PERSISTENCE_INTERVAL_MS=${ABUSE_PERSISTENCE_INTERVAL_MS:-300000}
       - ABUSE_STATE_RETENTION_MS=${ABUSE_STATE_RETENTION_MS:-604800000}
     volumes:
       - meshcore_data:/data
