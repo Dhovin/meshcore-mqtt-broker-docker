@@ -32,6 +32,7 @@ const TCP_PORT = mqttConfig.tcpPort;
 const ENABLE_TCP = mqttConfig.enableTcp;
 const HOST = mqttConfig.host;
 const EXPECTED_AUDIENCE = mqttConfig.expectedAudience;
+const HTTP_REDIRECT_URL = mqttConfig.httpRedirectUrl;
 
 // Helper function to validate IATA airport codes
 function isValidIATACode(code: string): boolean {
@@ -847,11 +848,18 @@ aedes.on('clientError', (client, err) => {
 
 // Create HTTP server for WebSocket
 const httpServer = createServer((req, res) => {
-  // If this is not a WebSocket upgrade request, redirect to analyzer
+  // If this is not a WebSocket upgrade request, handle standard HTTP request
   if (!req.headers.upgrade || req.headers.upgrade.toLowerCase() !== 'websocket') {
-    console.log(`[HTTP] Non-WebSocket request from ${getClientIP(req)}, redirecting to analyzer`);
-    res.writeHead(301, { 'Location': 'https://analyzer.letsmesh.net/' });
-    res.end();
+    if (HTTP_REDIRECT_URL) {
+      console.log(`[HTTP] Non-WebSocket request from ${getClientIP(req)}, redirecting to ${HTTP_REDIRECT_URL}`);
+      res.writeHead(302, { 'Location': HTTP_REDIRECT_URL });
+      res.end();
+      return;
+    }
+
+    console.log(`[HTTP] Non-WebSocket status request from ${getClientIP(req)}`);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', service: 'MeshCore MQTT Broker' }));
     return;
   }
 });
@@ -1019,6 +1027,11 @@ httpServer.listen(WS_PORT, HOST, () => {
     console.log(`Standard TCP MQTT listening on: mqtt://${HOST}:${TCP_PORT}`);
   } else {
     console.log('Standard TCP MQTT:          Disabled (ENABLE_TCP_MQTT=false)');
+  }
+  if (HTTP_REDIRECT_URL) {
+    console.log(`HTTP Browser Redirect:      ${HTTP_REDIRECT_URL}`);
+  } else {
+    console.log('HTTP Browser Redirect:      Disabled (serving 200 OK status)');
   }
   console.log('');
   console.log('Authentication Modes:');

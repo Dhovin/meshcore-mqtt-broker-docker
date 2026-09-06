@@ -51,6 +51,8 @@ services:
       # Subscriber accounts format: username:password:role (1=Admin, 2=Full, 3=Limited)
       - SUBSCRIBER_1=admin:your-admin-password:1
       - SUBSCRIBER_2=viewer:your-viewer-password:2
+      # Optional HTTP Browser Redirect URL (leave empty for built-in 200 OK health status)
+      # - HTTP_REDIRECT_URL=https://your-custom-site-or-analyzer.com
       # Optional Standard TCP MQTT listener (for Mosquitto bridges)
       # - ENABLE_TCP_MQTT=true
       # - MQTT_TCP_PORT=1883
@@ -163,6 +165,10 @@ remote_username viewer
 remote_password your-subscriber-password
 ```
 
+### Web Browser & Healthcheck Endpoint
+Non-WebSocket HTTP requests (such as opening `http://your-server:8883` in a web browser or container health monitors):
+- **Default**: Responds with `HTTP 200 OK` and a JSON status message (`{"status":"ok","service":"MeshCore MQTT Broker"}`).
+- **Custom Redirect**: Set `HTTP_REDIRECT_URL=https://yourdomain.com` to redirect web visitors (HTTP 302) to your own custom website, map, or packet analyzer.
 
 ---
 

@@ -73,6 +73,7 @@ Scroll down to the **Environment variables** section in Portainer and click **+ 
 | `AUTH_EXPECTED_AUDIENCE` | `mqtt.yourdomain.com` | Expected JWT audience claim |
 | `SUBSCRIBER_1` | `viewer1:yourpassword:2` | Subscriber user (`user:pass:role`) |
 | `SUBSCRIBER_2` | `admin:adminpassword:1:10` | Subscriber user (`user:pass:role:maxConns`) |
+| `HTTP_REDIRECT_URL` | `https://yourdomain.com` | *(Optional)* Browser redirect URL (defaults to 200 OK status) |
 | `ABUSE_ENFORCEMENT_ENABLED` | `false` | Enable/disable abuse rate enforcement |
 
 ### Step 4: Deploy the Stack

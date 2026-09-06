@@ -94,7 +94,13 @@ Click **+ Add another Port, Variable, Line or Device** to create each variable r
    - **Key**: `MQTT_WS_PORT`
    - **Value**: `8883`
 
-5. **Abuse Enforcement (Optional)**:
+5. **HTTP Browser Redirect URL (Optional)**:
+   - **Config Type**: `Variable`
+   - **Name**: `HTTP Redirect URL`
+   - **Key**: `HTTP_REDIRECT_URL`
+   - **Value**: *(Leave blank to return 200 OK status, or set e.g. `https://yourdomain.com`)*
+
+6. **Abuse Enforcement (Optional)**:
    - **Config Type**: `Variable`
    - **Name**: `Abuse Enforcement`
    - **Key**: `ABUSE_ENFORCEMENT_ENABLED`

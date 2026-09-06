@@ -29,6 +29,7 @@ export function loadMqttConfig() {
     enableTcp: process.env.ENABLE_TCP_MQTT === 'true',
     host: process.env.MQTT_HOST!,
     expectedAudience: process.env.AUTH_EXPECTED_AUDIENCE!,
+    httpRedirectUrl: process.env.HTTP_REDIRECT_URL ? process.env.HTTP_REDIRECT_URL.trim() : '',
   };
 }
 
