@@ -1,9 +1,9 @@
 name: Sync Upstream Repository
 
 on:
-  schedule:
-    # Run daily at 00:00 UTC
-    - cron: '0 0 * * *'
+  # Automated daily schedule disabled to prevent overwriting custom additions in src/ (such as TCP MQTT support)
+  # schedule:
+  #   - cron: '0 0 * * *'
   workflow_dispatch:
 
 jobs:
